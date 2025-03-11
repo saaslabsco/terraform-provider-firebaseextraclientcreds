@@ -42,11 +42,17 @@ type RemoteConfigResource struct {
 
 // RemoteConfigResourceModel describes the resource data model.
 type RemoteConfigResourceModel struct {
-	ID         types.String                 `tfsdk:"id"`
-	Project    types.String                 `tfsdk:"project"`
-	Version    types.String                 `tfsdk:"version"`
-	Etag       types.String                 `tfsdk:"etag"`
-	Parameters []RemoteConfigParameterModel `tfsdk:"parameters"`
+	ID              types.String                               `tfsdk:"id"`
+	Project         types.String                               `tfsdk:"project"`
+	Version         types.String                               `tfsdk:"version"`
+	Etag            types.String                               `tfsdk:"etag"`
+	Parameters      []RemoteConfigParameterModel               `tfsdk:"parameters"`
+	ParameterGroups map[string]RemoteConfigParameterGroupModel `tfsdk:"parameter_groups"`
+}
+
+type RemoteConfigParameterGroupModel struct {
+	Description types.String                          `tfsdk:"description",json:"description"`
+	Parameters  map[string]RemoteConfigParameterModel `tfsdk:"parameters",json:"parameters"`
 }
 
 type RemoteConfigParameterModel struct {
@@ -93,11 +99,11 @@ func (r *RemoteConfigResource) Schema(ctx context.Context, req resource.SchemaRe
 						},
 						"default_value": schema.StringAttribute{
 							Required:            true,
-							MarkdownDescription: "name",
+							MarkdownDescription: "default_value",
 						},
 						"description": schema.StringAttribute{
 							Required:            true,
-							MarkdownDescription: "name",
+							MarkdownDescription: "description",
 						},
 						"value_type": schema.StringAttribute{
 							Required:            true,
@@ -106,7 +112,44 @@ func (r *RemoteConfigResource) Schema(ctx context.Context, req resource.SchemaRe
 					},
 				},
 			},
+
+			"parameter_groups": schema.MapNestedAttribute{
+				Optional: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"description": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "description",
+						},
+						"parameters": schema.MapNestedAttribute{
+							Required: true,
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"name": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "name",
+									},
+									"default_value": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "default_value",
+									},
+									"description": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "description",
+									},
+									"value_type": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "value type",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
+		// end parameter group
+
 	}
 }
 
@@ -141,7 +184,8 @@ func (r *RemoteConfigResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	payload := RemoteConfigUpdate{
-		Parameters: make(map[string]RemoteConfigParameter),
+		Parameters:      make(map[string]RemoteConfigParameter),
+		ParameterGroups: make(map[string]RemoteConfigParameterGroup),
 	}
 	for _, item := range data.Parameters {
 		payload.Parameters[item.Name.ValueString()] = RemoteConfigParameter{
@@ -151,6 +195,24 @@ func (r *RemoteConfigResource) Create(ctx context.Context, req resource.CreateRe
 			Description: item.Description.ValueString(),
 			ValueType:   item.ValueType.ValueString(),
 		}
+	}
+
+	for name, item := range data.ParameterGroups {
+		group := RemoteConfigParameterGroup{
+			Description: item.Description.ValueString(),
+			Parameters:  make(map[string]RemoteConfigParameter),
+		}
+
+		for pname, param := range item.Parameters {
+			group.Parameters[pname] = RemoteConfigParameter{
+				DefaultValue: ConfigValue{
+					Value: param.DefaultValue.ValueString(),
+				},
+				Description: param.Description.ValueString(),
+				ValueType:   param.ValueType.ValueString(),
+			}
+		}
+		payload.ParameterGroups[name] = group
 	}
 
 	jsonData, err := json.Marshal(payload)
@@ -249,6 +311,27 @@ func (r *RemoteConfigResource) Read(ctx context.Context, req resource.ReadReques
 		return strings.Compare(strings.ToLower(a.Name.ValueString()), strings.ToLower(b.Name.ValueString()))
 	})
 
+	data.ParameterGroups = make(map[string]RemoteConfigParameterGroupModel)
+	for k, v := range target.ParameterGroups {
+		data.ParameterGroups[k] = RemoteConfigParameterGroupModel{
+			Description: types.StringValue(v.Description),
+			Parameters:  make(map[string]RemoteConfigParameterModel),
+		}
+
+		for paramName, paramValue := range v.Parameters {
+			data.ParameterGroups[k].Parameters[paramName] = RemoteConfigParameterModel{
+				Name:         types.StringValue(paramName),
+				Description:  types.StringValue(paramValue.Description),
+				ValueType:    types.StringValue(paramValue.ValueType),
+				DefaultValue: types.StringValue(paramValue.DefaultValue.Value),
+			}
+		}
+	}
+
+	slices.SortFunc(data.Parameters, func(a, b RemoteConfigParameterModel) int {
+		return strings.Compare(strings.ToLower(a.Name.ValueString()), strings.ToLower(b.Name.ValueString()))
+	})
+
 	data.ID = types.StringValue(data.Project.ValueString())
 	data.Version = types.StringValue(target.Version.VersionNumber)
 	data.Etag = types.StringValue(httpResp.Header.Get("ETag"))
@@ -272,7 +355,8 @@ func (r *RemoteConfigResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	payload := RemoteConfigUpdate{
-		Parameters: make(map[string]RemoteConfigParameter),
+		Parameters:      make(map[string]RemoteConfigParameter),
+		ParameterGroups: make(map[string]RemoteConfigParameterGroup),
 	}
 	for _, item := range data.Parameters {
 		payload.Parameters[item.Name.ValueString()] = RemoteConfigParameter{
@@ -286,6 +370,24 @@ func (r *RemoteConfigResource) Update(ctx context.Context, req resource.UpdateRe
 	slices.SortFunc(data.Parameters, func(a, b RemoteConfigParameterModel) int {
 		return strings.Compare(strings.ToLower(a.Name.ValueString()), strings.ToLower(b.Name.ValueString()))
 	})
+
+	for name, item := range data.ParameterGroups {
+		group := RemoteConfigParameterGroup{
+			Description: item.Description.ValueString(),
+			Parameters:  make(map[string]RemoteConfigParameter),
+		}
+
+		for pname, param := range item.Parameters {
+			group.Parameters[pname] = RemoteConfigParameter{
+				DefaultValue: ConfigValue{
+					Value: param.DefaultValue.ValueString(),
+				},
+				Description: param.Description.ValueString(),
+				ValueType:   param.ValueType.ValueString(),
+			}
+		}
+		payload.ParameterGroups[name] = group
+	}
 
 	var state RemoteConfigResourceModel
 	diags2 := req.State.Get(ctx, &state)
@@ -383,6 +485,11 @@ type RemoteConfigParameter struct {
 	Description  string      `json:"description"`
 	ValueType    string      `json:"valueType"`
 }
+
+type RemoteConfigParameterGroup struct {
+	Description string                           `json:"description"`
+	Parameters  map[string]RemoteConfigParameter `json:"parameters"`
+}
 type RemoteConfigVersion struct {
 	VersionNumber string    `json:"versionNumber"`
 	UpdateTime    time.Time `json:"updateTime"`
@@ -394,10 +501,12 @@ type RemoteConfigVersion struct {
 }
 
 type RemoteConfigRead struct {
-	Parameters map[string]RemoteConfigParameter `json:"parameters"`
-	Version    RemoteConfigVersion              `json:"version"`
+	Parameters      map[string]RemoteConfigParameter      `json:"parameters"`
+	ParameterGroups map[string]RemoteConfigParameterGroup `json:"parameterGroups"`
+	Version         RemoteConfigVersion                   `json:"version"`
 }
 
 type RemoteConfigUpdate struct {
-	Parameters map[string]RemoteConfigParameter `json:"parameters"`
+	Parameters      map[string]RemoteConfigParameter      `json:"parameters"`
+	ParameterGroups map[string]RemoteConfigParameterGroup `json:"parameter_groups"`
 }
