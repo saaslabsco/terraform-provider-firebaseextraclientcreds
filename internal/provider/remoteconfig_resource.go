@@ -293,7 +293,7 @@ func (r *RemoteConfigResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	data.Version = types.StringValue(target.Version.VersionNumber)
+	// data.Version = types.StringValue(target.Version.VersionNumber)
 	if httpResp.Header.Get("Etag") == "" {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("etag header is  missing in the response: %s %s", string(bodyBytes), httpResp.Header))
 		return
