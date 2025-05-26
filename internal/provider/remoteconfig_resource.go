@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"golang.org/x/oauth2/google"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -270,7 +271,7 @@ func (r *RemoteConfigResource) Read(ctx context.Context, req resource.ReadReques
 	tflog.Trace(ctx, fmt.Sprintf("dump data %v", data))
 	httpReq, err := http.NewRequest("GET", url, nil)
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+r.client.accesstoken)
+	httpReq.Header.Set("Authorization", "Bearer "+getAccessToken(r.client.accesstoken))
 	httpResp, err := r.client.Do(httpReq)
 	if err != nil {
 		resp.Diagnostics.AddError("refresh error", fmt.Sprintf("unable to make http request to update config to firebase: %w", err))
@@ -444,7 +445,7 @@ func (r *RemoteConfigResource) writeToFireBase(ctx context.Context, url string, 
 	tflog.Trace(ctx, fmt.Sprintf("prepare to update remote config url: %s etag: %s version %s payload: %s", url, data.Etag.ValueString(), data.Version.ValueString(), string(jsonData)))
 	httpReq.Header.Set("If-Match", data.Etag.ValueString())
 
-	httpReq.Header.Set("Authorization", "Bearer "+r.client.accesstoken)
+	httpReq.Header.Set("Authorization", "Bearer "+getAccessToken(r.client.accesstoken))
 	httpResp, err := r.client.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("unable to make http request to update config to firebase: %w", err)
@@ -509,4 +510,21 @@ type RemoteConfigRead struct {
 type RemoteConfigUpdate struct {
 	Parameters      map[string]RemoteConfigParameter      `json:"parameters"`
 	ParameterGroups map[string]RemoteConfigParameterGroup `json:"parameter_groups"`
+}
+
+func getAccessToken(clientCreds string) string {
+	scopes := []string{"https://www.googleapis.com/auth/cloud-platform"} // Specify required scopes
+
+	// Find default credentials using the environment variable or ADC
+	credentials, err := google.JWTConfigFromJSON([]byte(clientCreds), scopes...)
+	if err != nil {
+		panic(err)
+	}
+
+	// Get the access token
+	token, err := credentials.TokenSource(context.Background()).Token()
+	if err != nil {
+		panic(err)
+	}
+	return token.AccessToken
 }
