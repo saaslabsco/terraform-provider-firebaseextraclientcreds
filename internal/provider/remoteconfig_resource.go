@@ -333,9 +333,9 @@ func (r *RemoteConfigResource) Read(ctx context.Context, req resource.ReadReques
 		return strings.Compare(strings.ToLower(a.Name.ValueString()), strings.ToLower(b.Name.ValueString()))
 	})
 
-	data.ID = types.StringValue(data.Project.ValueString())
-	data.Version = types.StringValue(target.Version.VersionNumber)
-	data.Etag = types.StringValue(httpResp.Header.Get("ETag"))
+	// data.ID = types.StringValue(data.Project.ValueString())
+	// data.Version = types.StringValue(target.Version.VersionNumber)
+	// data.Etag = types.StringValue(httpResp.Header.Get("ETag"))
 	tflog.Trace(ctx, fmt.Sprintf("refresh remote config for version %s", data.Version.ValueString(), data.Etag.ValueString()))
 
 	// Save updated data into Terraform state
@@ -469,9 +469,9 @@ func (r *RemoteConfigResource) writeToFireBase(ctx context.Context, url string, 
 		return fmt.Errorf("cannot write to firebase:\n%s", string(bodyBytes))
 	}
 
-	data.Version = types.StringValue(target.Version.VersionNumber)
-	data.Etag = types.StringValue(httpResp.Header.Get("ETag"))
-	data.ID = types.StringValue(data.Project.ValueString())
+	// data.Version = types.StringValue(target.Version.VersionNumber)
+	// data.Etag = types.StringValue(httpResp.Header.Get("ETag"))
+	// data.ID = types.StringValue(data.Project.ValueString())
 
 	tflog.Trace(ctx, fmt.Sprintf("publish remote config with version %s and etag %s", data.Version, data.Etag))
 
