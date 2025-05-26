@@ -230,7 +230,7 @@ func (r *RemoteConfigResource) Create(ctx context.Context, req resource.CreateRe
 	// When creating, we force etag to always match
 	// Read more here: https://firebase.google.com/docs/reference/remote-config/rest/v1/projects/updateRemoteConfig
 	// This mean that when creating all data is lost and an operator should import existing state instead
-	data.Etag = types.StringValue("*")
+	// data.Etag = types.StringValue("*")
 
 	if err = r.writeToFireBase(ctx, url, payload, data); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to write data to firebase: %w", err))
@@ -397,7 +397,7 @@ func (r *RemoteConfigResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	data.Etag = types.StringValue(state.Etag.ValueString())
+	// data.Etag = types.StringValue(state.Etag.ValueString())
 
 	//httpReq, err := http.NewRequest("POST", fmt.Sprintf("https://firebaseremoteconfig.googleapis.com/v1/projects/%s/remoteConfig", data.project))
 	url := fmt.Sprintf("%s/v1/projects/%s/remoteConfig", r.client.endpoint, data.Project.ValueString())
