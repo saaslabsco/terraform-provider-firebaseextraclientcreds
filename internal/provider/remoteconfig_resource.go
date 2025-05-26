@@ -74,15 +74,15 @@ func (r *RemoteConfigResource) Schema(ctx context.Context, req resource.SchemaRe
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:            true,
+				Optional:            true,
 				MarkdownDescription: "An internal id to keep track with firebase",
 			},
 			"version": schema.StringAttribute{
-				Computed:            true,
+				Optional:            true,
 				MarkdownDescription: "Published remoteconfig version",
 			},
 			"etag": schema.StringAttribute{
-				Computed:            true,
+				Optional:            true,
 				MarkdownDescription: "Published etag version",
 			},
 
